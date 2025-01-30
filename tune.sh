@@ -55,9 +55,6 @@ echo -e "Rata-rata Proses Apache \t:$avg MB"
 
 rumus=$(echo "scale=0; ($total - $system) / $avg" | bc)
 
-# Hasil tunning
-echo -e "MaxRequestWorkers & ServerLimit set on $rumus"
-
 
 if [ $rumus -lt 0 ]; then
     echo -e "\e[31m[-] Ram tidak sesuai\e[0m"
@@ -81,6 +78,9 @@ echo -e "\n ======= Tunning Apache2 ======="
 mv /etc/apache2/mods-available/mpm_prefork.conf /etc/apache2/mods-available/mpm_prefork.conf.backup 
 cp mpm_prefork.conf /etc/apache2/mods-available/mpm_prefork.conf
 a2enmod mpm_prefork > tune.log
+
+# Hasil tunning
+echo -e "\e[32m[+]MaxRequestWorkers & ServerLimit set on $rumus \e[0m"
 
 systemctl restart apache2
 if [ $? -eq 0 ]; then
