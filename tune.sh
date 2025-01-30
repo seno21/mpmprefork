@@ -40,12 +40,36 @@ fi
 echo -e "\e[0m\n####### REQUIREMENT #######\n"
 read -p "Memory System (Dalam satuan MB) : " sys
 
+if ! [[ $sys =~ ^[0-9]+$ ]]; then
+    echo -e "\e[31mInput tidak valid!\e[0m"
+    exit
+fi
+
 system=$sys  
 float_avg=$(ps -ylC apache2 | awk '{x += $8;y += 1} END {print x/((y-1)*1024)}')
 avg=$(echo $float_avg | awk '{print int($1)}')
 total=$(free | awk '/^Mem:/ {print $2/1024}')
 apache=$(ps -ylC apache2 | awk '{x += $8;y += 1} END {print x/1024;}')
 
+rumus=$(echo "scale=0; ($total - $system) / $avg" | bc)
+
+if [ $rumus -lt 0 ]; then
+    echo -e "\e[31m[-] Ram tidak sesuai\e[0m"
+    exit 1
+fi
+
+file=mpm_prefork.conf.backup
+if [ -f "${file}" ]; then
+    cp $file mpm_prefork.conf
+    filenew=mpm_prefork.conf
+    server=$(echo -e "\tServerLimit \t\t\t$rumus")
+    worker=$(echo -e "\tMaxRequestWorkers \t$rumus")
+    sed -i "2i $server " $filenew
+    sed -i "3i $worker " $filenew
+else 
+    echo -e "\e[31m[-] Master File tidak ditemukan\e[0m"
+    exit
+fi
 
 echo -e "\n ======= Detail ======="
 echo -e "Pemakaian Memory Apache \t:$apache MB"
@@ -53,29 +77,10 @@ echo -e "Kebutuhan Memory System \t:$sys MB"
 echo -e "Total Memory \t\t\t:$total MB"
 echo -e "Rata-rata Proses Apache \t:$avg MB"
 
-rumus=$(echo "scale=0; ($total - $system) / $avg" | bc)
-
-
-if [ $rumus -lt 0 ]; then
-    echo -e "\e[31m[-] Ram tidak sesuai\e[0m"
-    exit 1
-fi
-
-file=mpm_prefork.conf
-if [ -f "${file}" ]; then
-    server=$(echo -e "\tServerLimit \t\t\t$rumus")
-    worker=$(echo -e "\tMaxRequestWorkers \t$rumus")
-    sed -i "2i $server " $file
-    sed -i "3i $worker " $file
-else 
-    echo -e "\e[31m[-] File tidak ditemukan\e[0m"
-    exit
-fi
-
-
 echo -e "\n ======= Tunning Apache2 ======="
 # Copy file dan reload apache
-mv /etc/apache2/mods-available/mpm_prefork.conf /etc/apache2/mods-available/mpm_prefork.conf.backup 
+tgl=$(date +%d%m%Y)
+mv /etc/apache2/mods-available/mpm_prefork.conf /etc/apache2/mods-available/mpm_prefork.conf.${tgl} 
 cp mpm_prefork.conf /etc/apache2/mods-available/mpm_prefork.conf
 a2enmod mpm_prefork > tune.log
 
